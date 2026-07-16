@@ -25,18 +25,15 @@ app = Flask(__name__)
 # DATABASE CONNECTION - SUPABASE
 # ============================================
 
-# Supabase Connection Settings (from environment variables)
 SUPABASE_HOST = os.environ.get('SUPABASE_HOST', 'db.livwipmybrvgtgrbtxkc.supabase.co')
 SUPABASE_DATABASE = os.environ.get('SUPABASE_DATABASE', 'postgres')
 SUPABASE_USERNAME = os.environ.get('SUPABASE_USERNAME', 'postgres')
 SUPABASE_PASSWORD = os.environ.get('SUPABASE_PASSWORD', 'W2QjDGkLDNOy87OC')
 SUPABASE_PORT = os.environ.get('SUPABASE_PORT', '5432')
 
-# Connection string
 DATABASE_URL = f"postgresql://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DATABASE}"
 
 def get_db_connection():
-    """Get connection to Supabase PostgreSQL"""
     try:
         conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
         logger.info("✅ Supabase connection successful!")
@@ -74,7 +71,6 @@ def index():
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check for Railway"""
     try:
         conn = get_db_connection()
         if conn:
