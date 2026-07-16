@@ -3,30 +3,25 @@ SPAR ETL RECEIVER - SUPABASE (POSTGRESQL) VERSION
 For Railway Deployment
 """
 
-import socket
 import os
 import sys
 import logging
+import socket
 from datetime import datetime, date, time
 from decimal import Decimal
 import random
 import traceback
 
-# Force IPv4 - Disable IPv6
+# Force IPv4
 try:
-    # This helps force IPv4 connections
-    import socket
-    # Override getaddrinfo to prefer IPv4
     original_getaddrinfo = socket.getaddrinfo
     
     def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-        # Force IPv4
         return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
     
     socket.getaddrinfo = ipv4_only_getaddrinfo
-    logging.info("✅ IPv6 disabled, forcing IPv4 connections")
 except Exception as e:
-    logging.warning(f"Could not force IPv4: {e}")
+    pass
 
 from flask import Flask, request, jsonify
 import psycopg2
@@ -38,9 +33,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Log that app is starting
 logger.info("🚀 SPAR ETL Receiver starting...")
-logger.info(f"Python version: {sys.version}")
 
 app = Flask(__name__)
 
@@ -54,38 +47,31 @@ SUPABASE_USERNAME = os.environ.get('SUPABASE_USERNAME', 'postgres')
 SUPABASE_PASSWORD = os.environ.get('SUPABASE_PASSWORD', 'W2QjDGkLDNOy87OC')
 SUPABASE_PORT = os.environ.get('SUPABASE_PORT', '5432')
 
-# Log connection details (without password)
 logger.info(f"📡 Supabase Host: {SUPABASE_HOST}")
 logger.info(f"📡 Database: {SUPABASE_DATABASE}")
 logger.info(f"📡 Username: {SUPABASE_USERNAME}")
 logger.info(f"📡 Port: {SUPABASE_PORT}")
 
 def get_db_connection():
-    """Get connection to Supabase PostgreSQL - Force IPv4"""
+    """Get connection to Supabase PostgreSQL"""
     try:
-        # Try to resolve the host to IPv4
+        # Resolve host to IPv4
         try:
-            import socket
-            # Get IPv4 address
             host_ip = socket.gethostbyname(SUPABASE_HOST)
             logger.info(f"✅ Resolved {SUPABASE_HOST} to IPv4: {host_ip}")
-            # Use the IP address to force IPv4
             connect_host = host_ip
         except Exception as e:
             logger.warning(f"Could not resolve host to IPv4: {e}")
             connect_host = SUPABASE_HOST
         
-        # Build connection string
         conn_str = f"postgresql://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{connect_host}:{SUPABASE_PORT}/{SUPABASE_DATABASE}"
         logger.info(f"Connecting to {connect_host}:{SUPABASE_PORT}...")
         
-        # Connect with timeout
         conn = psycopg2.connect(conn_str, connect_timeout=30)
         logger.info("✅ Supabase connection successful!")
         return conn
     except Exception as e:
         logger.error(f"❌ Supabase connection failed: {e}")
-        logger.error(f"Full error: {traceback.format_exc()}")
         return None
 
 # ============================================
@@ -385,16 +371,23 @@ def after_request(response):
     return response
 
 # ============================================
-# MAIN (For local testing only)
+# MAIN - CRITICAL: Correct binding for Railway
 # ============================================
 
 if __name__ == '__main__':
+    # Railway injects PORT environment variable
     port = int(os.environ.get('PORT', 8000))
+    
     print("=" * 70)
     print("🛒 SPAR ETL RECEIVER - SUPABASE VERSION")
     print("=" * 70)
     print(f"\n🚀 Starting on port {port}...")
+    print(f"📡 Bind address: 0.0.0.0 (all interfaces)")
     print(f"📡 Supabase Host: {SUPABASE_HOST}")
     print(f"📡 Database: {SUPABASE_DATABASE}")
     print("=" * 70)
-    app.run(host='0.0.0.0', port=port, debug=False)
+    print(f"\n✅ Server will be accessible on PORT {port}")
+    print("=" * 70)
+    
+    # CRITICAL: Bind to 0.0.0.0 and PORT
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
