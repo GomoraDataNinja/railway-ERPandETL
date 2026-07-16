@@ -1,6 +1,6 @@
 """
 SPAR ETL RECEIVER - SUPABASE (POSTGRESQL) VERSION
-For Railway Deployment
+For Railway Deployment - FIXED
 """
 
 import os
@@ -80,24 +80,15 @@ def get_db_connection():
 
 @app.route('/', methods=['GET'])
 def index():
-    conn = get_db_connection()
-    db_status = "connected" if conn else "disconnected"
-    if conn:
-        conn.close()
-    
     return jsonify({
         "service": "SPAR ETL Receiver - Supabase",
         "status": "running",
         "database": SUPABASE_DATABASE,
-        "db_status": db_status,
         "endpoints": {
             "health": "GET /health",
             "products": "GET /products",
-            "products/add": "POST /products/add",
             "sales_orders": "GET /sales-orders, POST /sales-orders",
-            "purchase_orders": "GET /purchase-orders, POST /purchase-orders",
-            "recent": "GET /recent",
-            "receipt/<order_number>": "GET /receipt/<order_number>"
+            "recent": "GET /recent"
         }
     })
 
@@ -371,23 +362,16 @@ def after_request(response):
     return response
 
 # ============================================
-# MAIN - CRITICAL: Correct binding for Railway
+# MAIN
 # ============================================
 
 if __name__ == '__main__':
-    # Railway injects PORT environment variable
     port = int(os.environ.get('PORT', 8000))
-    
     print("=" * 70)
     print("🛒 SPAR ETL RECEIVER - SUPABASE VERSION")
     print("=" * 70)
     print(f"\n🚀 Starting on port {port}...")
-    print(f"📡 Bind address: 0.0.0.0 (all interfaces)")
     print(f"📡 Supabase Host: {SUPABASE_HOST}")
     print(f"📡 Database: {SUPABASE_DATABASE}")
     print("=" * 70)
-    print(f"\n✅ Server will be accessible on PORT {port}")
-    print("=" * 70)
-    
-    # CRITICAL: Bind to 0.0.0.0 and PORT
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
