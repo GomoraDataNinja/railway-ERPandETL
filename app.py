@@ -3,21 +3,44 @@ SPAR ETL RECEIVER - SUPABASE (POSTGRESQL) VERSION
 For Railway Deployment
 """
 
-from flask import Flask, request, jsonify
-from datetime import datetime, date, time
-import psycopg2
-import psycopg2.extras
-import logging
+import socket
 import os
+import sys
+import logging
+from datetime import datetime, date, time
+from decimal import Decimal
 import random
 import traceback
-from decimal import Decimal
+
+# Force IPv4 - Disable IPv6
+try:
+    # This helps force IPv4 connections
+    import socket
+    # Override getaddrinfo to prefer IPv4
+    original_getaddrinfo = socket.getaddrinfo
+    
+    def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        # Force IPv4
+        return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    
+    socket.getaddrinfo = ipv4_only_getaddrinfo
+    logging.info("✅ IPv6 disabled, forcing IPv4 connections")
+except Exception as e:
+    logging.warning(f"Could not force IPv4: {e}")
+
+from flask import Flask, request, jsonify
+import psycopg2
+import psycopg2.extras
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Log that app is starting
+logger.info("🚀 SPAR ETL Receiver starting...")
+logger.info(f"Python version: {sys.version}")
 
 app = Flask(__name__)
 
@@ -31,15 +54,38 @@ SUPABASE_USERNAME = os.environ.get('SUPABASE_USERNAME', 'postgres')
 SUPABASE_PASSWORD = os.environ.get('SUPABASE_PASSWORD', 'W2QjDGkLDNOy87OC')
 SUPABASE_PORT = os.environ.get('SUPABASE_PORT', '5432')
 
-DATABASE_URL = f"postgresql://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DATABASE}"
+# Log connection details (without password)
+logger.info(f"📡 Supabase Host: {SUPABASE_HOST}")
+logger.info(f"📡 Database: {SUPABASE_DATABASE}")
+logger.info(f"📡 Username: {SUPABASE_USERNAME}")
+logger.info(f"📡 Port: {SUPABASE_PORT}")
 
 def get_db_connection():
+    """Get connection to Supabase PostgreSQL - Force IPv4"""
     try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        # Try to resolve the host to IPv4
+        try:
+            import socket
+            # Get IPv4 address
+            host_ip = socket.gethostbyname(SUPABASE_HOST)
+            logger.info(f"✅ Resolved {SUPABASE_HOST} to IPv4: {host_ip}")
+            # Use the IP address to force IPv4
+            connect_host = host_ip
+        except Exception as e:
+            logger.warning(f"Could not resolve host to IPv4: {e}")
+            connect_host = SUPABASE_HOST
+        
+        # Build connection string
+        conn_str = f"postgresql://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{connect_host}:{SUPABASE_PORT}/{SUPABASE_DATABASE}"
+        logger.info(f"Connecting to {connect_host}:{SUPABASE_PORT}...")
+        
+        # Connect with timeout
+        conn = psycopg2.connect(conn_str, connect_timeout=30)
         logger.info("✅ Supabase connection successful!")
         return conn
     except Exception as e:
         logger.error(f"❌ Supabase connection failed: {e}")
+        logger.error(f"Full error: {traceback.format_exc()}")
         return None
 
 # ============================================
@@ -71,6 +117,7 @@ def index():
 
 @app.route('/health', methods=['GET'])
 def health():
+    """Health check for Railway"""
     try:
         conn = get_db_connection()
         if conn:
@@ -81,6 +128,7 @@ def health():
             return jsonify({"status": "healthy", "database": "connected"}), 200
         return jsonify({"status": "degraded", "database": "disconnected"}), 200
     except Exception as e:
+        logger.error(f"Health check error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/products', methods=['GET'])
